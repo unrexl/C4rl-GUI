@@ -6,10 +6,11 @@
 local InteractiveElements = {}
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-
+function InteractiveElements.Inject(Library, Utils)
 function InteractiveElements.Inject(Library, Utils)
     
     -- TOGGLE
+    function Library:AddToggle(tabName, options)
     function Library:AddToggle(tabName, options)
         options = options or {}
         local tab = self:GetTab(tabName)
@@ -119,7 +120,8 @@ function InteractiveElements.Inject(Library, Utils)
     end
     
     -- SLIDER
-    function Library:AddSlider(tabName, options)
+        function Library:AddSlider(tabName, options)    
+        function Library:AddSlider(tabName, options)
         options = options or {}
         local tab = self:GetTab(tabName)
         if not tab then return end
@@ -276,6 +278,10 @@ function InteractiveElements.Inject(Library, Utils)
     end
     
     -- See AdvancedElements.lua for: Button, Dropdown, ColorPicker, Keybind, TextInput, ProgressBar, ChipSelector, InfoCard
+end
+
+return InteractiveElements
+    Library:_MarkInjected()
 end
 
 return InteractiveElements
