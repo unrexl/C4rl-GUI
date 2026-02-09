@@ -1,0 +1,764 @@
+-- C4RL GUI Library - Apple-Style Dark Theme
+-- A modern, standalone GUI library for Roblox
+
+local C4RLLib = {}
+C4RLLib.__index = C4RLLib
+
+-- Services
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- Color Palette
+local Colors = {
+    MainBG = Color3.fromRGB(18, 18, 20),
+    CardBG = Color3.fromRGB(28, 28, 30),
+    SidebarBG = Color3.fromRGB(28, 28, 30),
+    HeaderBG = Color3.fromRGB(28, 28, 30),
+    
+    PrimaryText = Color3.fromRGB(255, 255, 255),
+    SecondaryText = Color3.fromRGB(150, 150, 150),
+    InactiveTabText = Color3.fromRGB(200, 200, 200),
+    
+    Accent = Color3.fromRGB(0, 122, 255),
+    SuccessGreen = Color3.fromRGB(52, 199, 89),
+    WarningYellow = Color3.fromRGB(255, 189, 68),
+    DangerRed = Color3.fromRGB(255, 95, 87),
+    
+    SliderBG = Color3.fromRGB(58, 58, 60),
+    ToggleOff = Color3.fromRGB(58, 58, 60),
+    InactiveTab = Color3.fromRGB(44, 44, 46),
+}
+
+-- Helper Functions
+local function createCorner(radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius)
+    return corner
+end
+
+local function createStroke(color, transparency, thickness)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color
+    stroke.Transparency = transparency
+    stroke.Thickness = thickness
+    return stroke
+end
+
+-- Main Library Constructor
+function C4RLLib.new(title)
+    local self = setmetatable({}, C4RLLib)
+    
+    self.Title = title or "C4RL"
+    self.Config = {}
+    self.Tabs = {}
+    self.CurrentTab = nil
+    self.Connections = {}
+    
+    -- Create ScreenGui
+    self.ScreenGui = Instance.new("ScreenGui")
+    self.ScreenGui.Name = "C4RLMenu"
+    self.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    self.ScreenGui.ResetOnSpawn = false
+    
+    -- Create minimized button
+    self:CreateMinimizedButton()
+    
+    -- Create main window
+    self:CreateMainWindow()
+    
+    -- Show loading notification
+    self:ShowNotification(self.Title .. " Loaded", "Press INSERT to toggle")
+    
+    -- Setup keybind
+    self:SetupKeybind()
+    
+    return self
+end
+
+-- Create Minimized Floating Button
+function C4RLLib:CreateMinimizedButton()
+    local minimized = Instance.new("Frame")
+    minimized.Name = "Minimized"
+    minimized.Size = UDim2.new(0, 60, 0, 60)
+    minimized.Position = UDim2.new(0, 20, 0.5, -30)
+    minimized.BackgroundColor3 = Colors.Accent
+    minimized.BorderSizePixel = 0
+    minimized.Visible = false
+    minimized.Parent = self.ScreenGui
+    
+    local corner = createCorner(30)
+    corner.Parent = minimized
+    
+    local stroke = createStroke(Colors.Accent, 0.5, 1)
+    stroke.Parent = minimized
+    
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundTransparency = 1
+    button.Text = string.sub(self.Title, 1, 2)
+    button.TextColor3 = Colors.PrimaryText
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 18
+    button.Parent = minimized
+    
+    button.MouseButton1Click:Connect(function()
+        self.MainFrame.Visible = true
+        minimized.Visible = false
+    end)
+    
+    self.MinimizedButton = minimized
+end
+
+-- Create Main Window
+function C4RLLib:CreateMainWindow()
+    local main = Instance.new("Frame")
+    main.Name = "Main"
+    main.Size = UDim2.new(0, 700, 0, 500)
+    main.Position = UDim2.new(0.5, -350, 0.5, -250)
+    main.BackgroundColor3 = Colors.MainBG
+    main.BorderSizePixel = 0
+    main.Parent = self.ScreenGui
+    
+    local corner = createCorner(16)
+    corner.Parent = main
+    
+    local stroke = createStroke(Colors.Accent, 0.7, 1)
+    stroke.Parent = main
+    
+    self.MainFrame = main
+    
+    -- Create Header
+    self:CreateHeader()
+    
+    -- Create Sidebar
+    self:CreateSidebar()
+    
+    -- Create Content Area
+    self:CreateContentArea()
+    
+    -- Setup Dragging
+    self:SetupDragging()
+end
+
+-- Create Header
+function C4RLLib:CreateHeader()
+    local header = Instance.new("Frame")
+    header.Name = "Header"
+    header.Size = UDim2.new(1, 0, 0, 50)
+    header.Position = UDim2.new(0, 0, 0, 0)
+    header.BackgroundColor3 = Colors.HeaderBG
+    header.BorderSizePixel = 0
+    header.Parent = self.MainFrame
+    
+    local corner = createCorner(16)
+    corner.Parent = header
+    
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(0, 200, 1, 0)
+    title.Position = UDim2.new(0, 60, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = self.Title
+    title.TextColor3 = Colors.PrimaryText
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = header
+    
+    -- Minimize Button
+    local minimize = Instance.new("TextButton")
+    minimize.Name = "Minimize"
+    minimize.Size = UDim2.new(0, 12, 0, 12)
+    minimize.Position = UDim2.new(0, 20, 0.5, -6)
+    minimize.BackgroundColor3 = Colors.WarningYellow
+    minimize.BorderSizePixel = 0
+    minimize.Text = ""
+    minimize.Parent = header
+    
+    local minCorner = createCorner(6)
+    minCorner.Parent = minimize
+    
+    minimize.MouseButton1Click:Connect(function()
+        self.MainFrame.Visible = false
+        self.MinimizedButton.Visible = true
+    end)
+    
+    -- Close Button
+    local close = Instance.new("TextButton")
+    close.Name = "Close"
+    close.Size = UDim2.new(0, 12, 0, 12)
+    close.Position = UDim2.new(0, 40, 0.5, -6)
+    close.BackgroundColor3 = Colors.DangerRed
+    close.BorderSizePixel = 0
+    close.Text = ""
+    close.Parent = header
+    
+    local closeCorner = createCorner(6)
+    closeCorner.Parent = close
+    
+    close.MouseButton1Click:Connect(function()
+        self:Destroy()
+    end)
+    
+    self.Header = header
+end
+
+-- Create Sidebar
+function C4RLLib:CreateSidebar()
+    local sidebar = Instance.new("Frame")
+    sidebar.Name = "Sidebar"
+    sidebar.Size = UDim2.new(0, 150, 1, -50)
+    sidebar.Position = UDim2.new(0, 0, 0, 50)
+    sidebar.BackgroundColor3 = Colors.SidebarBG
+    sidebar.BorderSizePixel = 0
+    sidebar.Parent = self.MainFrame
+    
+    local corner = createCorner(16)
+    corner.Parent = sidebar
+    
+    self.Sidebar = sidebar
+    self.TabButtons = {}
+end
+
+-- Create Content Area
+function C4RLLib:CreateContentArea()
+    local content = Instance.new("Frame")
+    content.Name = "Content"
+    content.Size = UDim2.new(1, -160, 1, -60)
+    content.Position = UDim2.new(0, 155, 0, 55)
+    content.BackgroundTransparency = 1
+    content.BorderSizePixel = 0
+    content.Parent = self.MainFrame
+    
+    self.ContentArea = content
+end
+
+-- Setup Dragging
+function C4RLLib:SetupDragging()
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    
+    local connection1 = self.Header.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = self.MainFrame.Position
+        end
+    end)
+    
+    local connection2 = self.Header.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    local connection3 = UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            self.MainFrame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    table.insert(self.Connections, connection1)
+    table.insert(self.Connections, connection2)
+    table.insert(self.Connections, connection3)
+end
+
+-- Setup Keybind
+function C4RLLib:SetupKeybind()
+    local connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Enum.KeyCode.Insert then
+            self.ScreenGui.Enabled = not self.ScreenGui.Enabled
+        end
+    end)
+    
+    table.insert(self.Connections, connection)
+end
+
+-- Add Tab
+function C4RLLib:AddTab(name)
+    local tab = {
+        Name = name,
+        Elements = {},
+        ScrollFrame = nil,
+        Button = nil,
+    }
+    
+    -- Create tab button
+    local order = #self.Tabs + 1
+    local button = Instance.new("TextButton")
+    button.Name = name .. "Button"
+    button.Size = UDim2.new(1, -10, 0, 40)
+    button.Position = UDim2.new(0, 5, 0, 10 + ((order - 1) * 45))
+    button.BackgroundColor3 = order == 1 and Colors.Accent or Colors.InactiveTab
+    button.BorderSizePixel = 0
+    button.Text = name
+    button.TextColor3 = order == 1 and Colors.PrimaryText or Colors.InactiveTabText
+    button.Font = Enum.Font.GothamMedium
+    button.TextSize = 14
+    button.Parent = self.Sidebar
+    
+    local corner = createCorner(8)
+    corner.Parent = button
+    
+    tab.Button = button
+    
+    -- Create scroll frame
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Name = name .. "Tab"
+    scroll.Size = UDim2.new(1, 0, 1, 0)
+    scroll.Position = UDim2.new(0, 0, 0, 0)
+    scroll.BackgroundTransparency = 1
+    scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 4
+    scroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.Visible = order == 1
+    scroll.Parent = self.ContentArea
+    
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 10)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = scroll
+    
+    tab.ScrollFrame = scroll
+    
+    -- Setup button click
+    button.MouseButton1Click:Connect(function()
+        self:SwitchTab(name)
+    end)
+    
+    table.insert(self.Tabs, tab)
+    self.TabButtons[name] = button
+    
+    if order == 1 then
+        self.CurrentTab = name
+    end
+    
+    return tab
+end
+
+-- Switch Tab
+function C4RLLib:SwitchTab(tabName)
+    self.CurrentTab = tabName
+    
+    for _, tab in ipairs(self.Tabs) do
+        if tab.Name == tabName then
+            tab.ScrollFrame.Visible = true
+            tab.Button.BackgroundColor3 = Colors.Accent
+            tab.Button.TextColor3 = Colors.PrimaryText
+        else
+            tab.ScrollFrame.Visible = false
+            tab.Button.BackgroundColor3 = Colors.InactiveTab
+            tab.Button.TextColor3 = Colors.InactiveTabText
+        end
+    end
+end
+
+-- Add Toggle to Tab
+function C4RLLib:AddToggle(tabName, options)
+    local tab = self:GetTab(tabName)
+    if not tab then return end
+    
+    local name = options.Name or "Toggle"
+    local description = options.Description or ""
+    local default = options.Default or false
+    local callback = options.Callback or function() end
+    
+    self.Config[name] = default
+    
+    -- Create card
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, -10, 0, 55)
+    card.BackgroundColor3 = Colors.CardBG
+    card.BorderSizePixel = 0
+    card.LayoutOrder = #tab.Elements + 1
+    card.Parent = tab.ScrollFrame
+    
+    local corner = createCorner(10)
+    corner.Parent = card
+    
+    -- Main label
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.65, -20, 0, 22)
+    label.Position = UDim2.new(0, 15, 0, 8)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Colors.PrimaryText
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = card
+    
+    -- Description
+    local desc = Instance.new("TextLabel")
+    desc.Size = UDim2.new(0.65, -20, 0, 16)
+    desc.Position = UDim2.new(0, 15, 0, 30)
+    desc.BackgroundTransparency = 1
+    desc.Text = description
+    desc.TextColor3 = Colors.SecondaryText
+    desc.Font = Enum.Font.Gotham
+    desc.TextSize = 11
+    desc.TextXAlignment = Enum.TextXAlignment.Left
+    desc.Parent = card
+    
+    -- Toggle container
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(0, 50, 0, 28)
+    toggleBtn.Position = UDim2.new(1, -65, 0.5, -14)
+    toggleBtn.BackgroundColor3 = default and Colors.SuccessGreen or Colors.ToggleOff
+    toggleBtn.BorderSizePixel = 0
+    toggleBtn.Text = ""
+    toggleBtn.Parent = card
+    
+    local toggleCorner = createCorner(14)
+    toggleCorner.Parent = toggleBtn
+    
+    -- Toggle knob
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 24, 0, 24)
+    knob.Position = default and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
+    knob.BackgroundColor3 = Colors.PrimaryText
+    knob.BorderSizePixel = 0
+    knob.Parent = toggleBtn
+    
+    local knobCorner = createCorner(12)
+    knobCorner.Parent = knob
+    
+    local knobStroke = createStroke(Color3.fromRGB(0, 0, 0), 0.7, 1)
+    knobStroke.Parent = knob
+    
+    -- Toggle functionality
+    toggleBtn.MouseButton1Click:Connect(function()
+        self.Config[name] = not self.Config[name]
+        local isOn = self.Config[name]
+        
+        TweenService:Create(toggleBtn, TweenInfo.new(0.2), {
+            BackgroundColor3 = isOn and Colors.SuccessGreen or Colors.ToggleOff
+        }):Play()
+        
+        TweenService:Create(knob, TweenInfo.new(0.2), {
+            Position = isOn and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
+        }):Play()
+        
+        pcall(callback, isOn)
+    end)
+    
+    table.insert(tab.Elements, card)
+    return card
+end
+
+-- Add Slider to Tab
+function C4RLLib:AddSlider(tabName, options)
+    local tab = self:GetTab(tabName)
+    if not tab then return end
+    
+    local name = options.Name or "Slider"
+    local description = options.Description or ""
+    local min = options.Min or 0
+    local max = options.Max or 100
+    local default = options.Default or min
+    local callback = options.Callback or function() end
+    
+    self.Config[name] = default
+    
+    -- Create card
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, -10, 0, 70)
+    card.BackgroundColor3 = Colors.CardBG
+    card.BorderSizePixel = 0
+    card.LayoutOrder = #tab.Elements + 1
+    card.Parent = tab.ScrollFrame
+    
+    local corner = createCorner(10)
+    corner.Parent = card
+    
+    -- Label with value
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -30, 0, 18)
+    label.Position = UDim2.new(0, 15, 0, 8)
+    label.BackgroundTransparency = 1
+    label.Text = name .. ": " .. tostring(default)
+    label.TextColor3 = Colors.PrimaryText
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = card
+    
+    -- Description
+    local desc = Instance.new("TextLabel")
+    desc.Size = UDim2.new(1, -30, 0, 14)
+    desc.Position = UDim2.new(0, 15, 0, 26)
+    desc.BackgroundTransparency = 1
+    desc.Text = description
+    desc.TextColor3 = Colors.SecondaryText
+    desc.Font = Enum.Font.Gotham
+    desc.TextSize = 11
+    desc.TextXAlignment = Enum.TextXAlignment.Left
+    desc.Parent = card
+    
+    -- Slider background
+    local sliderBG = Instance.new("Frame")
+    sliderBG.Size = UDim2.new(1, -30, 0, 6)
+    sliderBG.Position = UDim2.new(0, 15, 1, -16)
+    sliderBG.BackgroundColor3 = Colors.SliderBG
+    sliderBG.BorderSizePixel = 0
+    sliderBG.Parent = card
+    
+    local sliderCorner = createCorner(3)
+    sliderCorner.Parent = sliderBG
+    
+    -- Slider fill
+    local sliderFill = Instance.new("Frame")
+    sliderFill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    sliderFill.BackgroundColor3 = Colors.Accent
+    sliderFill.BorderSizePixel = 0
+    sliderFill.Parent = sliderBG
+    
+    local fillCorner = createCorner(3)
+    fillCorner.Parent = sliderFill
+    
+    -- Slider interaction
+    local dragging = false
+    
+    local function updateSlider(input)
+        local relativePos = math.clamp(
+            (input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X,
+            0,
+            1
+        )
+        local value = math.floor(min + (max - min) * relativePos)
+        
+        self.Config[name] = value
+        label.Text = name .. ": " .. tostring(value)
+        sliderFill.Size = UDim2.new(relativePos, 0, 1, 0)
+        
+        pcall(callback, value)
+    end
+    
+    sliderBG.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            updateSlider(input)
+        end
+    end)
+    
+    sliderBG.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    local connection = UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateSlider(input)
+        end
+    end)
+    
+    table.insert(self.Connections, connection)
+    table.insert(tab.Elements, card)
+    return card
+end
+
+-- Add Color Picker to Tab
+function C4RLLib:AddColorPicker(tabName, options)
+    local tab = self:GetTab(tabName)
+    if not tab then return end
+    
+    local name = options.Name or "Color"
+    local description = options.Description or ""
+    local colors = options.Colors or {
+        Color3.fromRGB(0, 255, 150),
+        Color3.fromRGB(255, 50, 50),
+        Color3.fromRGB(0, 122, 255),
+        Color3.fromRGB(255, 200, 0),
+        Color3.fromRGB(200, 0, 255)
+    }
+    local default = options.Default or 3
+    local callback = options.Callback or function() end
+    
+    self.Config[name] = colors[default]
+    
+    -- Create card
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, -10, 0, 55)
+    card.BackgroundColor3 = Colors.CardBG
+    card.BorderSizePixel = 0
+    card.LayoutOrder = #tab.Elements + 1
+    card.Parent = tab.ScrollFrame
+    
+    local corner = createCorner(10)
+    corner.Parent = card
+    
+    -- Main label
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.65, -20, 0, 22)
+    label.Position = UDim2.new(0, 15, 0, 8)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Colors.PrimaryText
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = card
+    
+    -- Description
+    local desc = Instance.new("TextLabel")
+    desc.Size = UDim2.new(0.65, -20, 0, 16)
+    desc.Position = UDim2.new(0, 15, 0, 30)
+    desc.BackgroundTransparency = 1
+    desc.Text = description
+    desc.TextColor3 = Colors.SecondaryText
+    desc.Font = Enum.Font.Gotham
+    desc.TextSize = 11
+    desc.TextXAlignment = Enum.TextXAlignment.Left
+    desc.Parent = card
+    
+    -- Color buttons
+    local colorButtons = {}
+    for i, color in ipairs(colors) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 22, 0, 22)
+        btn.Position = UDim2.new(1, -27 - ((i - 1) * 27), 0.5, -11)
+        btn.BackgroundColor3 = color
+        btn.BorderSizePixel = 0
+        btn.Text = ""
+        btn.Parent = card
+        
+        local btnCorner = createCorner(11)
+        btnCorner.Parent = btn
+        
+        local stroke = createStroke(Colors.Accent, 1, 2)
+        stroke.Parent = btn
+        
+        if i == default then
+            stroke.Transparency = 0
+        end
+        
+        btn.MouseButton1Click:Connect(function()
+            for _, otherBtn in ipairs(colorButtons) do
+                otherBtn.UIStroke.Transparency = 1
+            end
+            stroke.Transparency = 0
+            self.Config[name] = color
+            pcall(callback, color)
+        end)
+        
+        table.insert(colorButtons, btn)
+    end
+    
+    table.insert(tab.Elements, card)
+    return card
+end
+
+-- Add Button to Tab
+function C4RLLib:AddButton(tabName, options)
+    local tab = self:GetTab(tabName)
+    if not tab then return end
+    
+    local name = options.Name or "Button"
+    local description = options.Description or ""
+    local callback = options.Callback or function() end
+    
+    -- Create card
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, -10, 0, 55)
+    card.BackgroundColor3 = Colors.CardBG
+    card.BorderSizePixel = 0
+    card.LayoutOrder = #tab.Elements + 1
+    card.Parent = tab.ScrollFrame
+    
+    local corner = createCorner(10)
+    corner.Parent = card
+    
+    -- Button
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, -30, 1, -10)
+    button.Position = UDim2.new(0, 15, 0, 5)
+    button.BackgroundColor3 = Colors.Accent
+    button.BorderSizePixel = 0
+    button.Text = name
+    button.TextColor3 = Colors.PrimaryText
+    button.Font = Enum.Font.GothamMedium
+    button.TextSize = 14
+    button.Parent = card
+    
+    local btnCorner = createCorner(8)
+    btnCorner.Parent = button
+    
+    button.MouseButton1Click:Connect(function()
+        pcall(callback)
+    end)
+    
+    table.insert(tab.Elements, card)
+    return card
+end
+
+-- Get Tab
+function C4RLLib:GetTab(name)
+    for _, tab in ipairs(self.Tabs) do
+        if tab.Name == name then
+            return tab
+        end
+    end
+    return nil
+end
+
+-- Show Notification
+function C4RLLib:ShowNotification(title, message)
+    local notif = Instance.new("Frame")
+    notif.Name = "Notification"
+    notif.Size = UDim2.new(0, 280, 0, 80)
+    notif.Position = UDim2.new(0.5, -140, 0, 30)
+    notif.BackgroundColor3 = Colors.CardBG
+    notif.BorderSizePixel = 0
+    notif.Parent = self.ScreenGui
+    
+    local corner = createCorner(16)
+    corner.Parent = notif
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 1, -20)
+    label.Position = UDim2.new(0, 10, 0, 10)
+    label.BackgroundTransparency = 1
+    label.Text = title .. "\n" .. message
+    label.TextColor3 = Colors.PrimaryText
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 14
+    label.Parent = notif
+    
+    -- Fade out animation
+    task.spawn(function()
+        task.wait(3)
+        for i = 1, 20 do
+            notif.BackgroundTransparency = notif.BackgroundTransparency + 0.05
+            label.TextTransparency = label.TextTransparency + 0.05
+            task.wait(0.03)
+        end
+        notif:Destroy()
+    end)
+end
+
+-- Parent to game
+function C4RLLib:Show()
+    self.ScreenGui.Parent = game:GetService("CoreGui")
+end
+
+-- Destroy library
+function C4RLLib:Destroy()
+    for _, connection in ipairs(self.Connections) do
+        connection:Disconnect()
+    end
+    self.ScreenGui:Destroy()
+end
+
+return C4RLLib
