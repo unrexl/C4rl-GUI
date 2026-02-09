@@ -1,5 +1,5 @@
 --[[
-    C4RL GUI LIBRARY - WindowManager Module
+    C4RL GUI LIBRARY - WindowManager Module (IMPROVED)
     Handles window creation, tabs, and core functionality
 ]]
 
@@ -8,9 +8,30 @@ local WindowManager = {}
 -- Services
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+
+-- Smart parent detection
+local function GetGuiParent()
+    local success, coreGui = pcall(function()
+        return game:GetService("CoreGui")
+    end)
+    
+    if success and coreGui:FindFirstChild("RobloxGui") then
+        -- Full CoreGui access available
+        return coreGui
+    else
+        -- Fallback to PlayerGui (works on all executors)
+        local Players = game:GetService("Players")
+        return Players.LocalPlayer:WaitForChild("PlayerGui")
+    end
+end
 
 function WindowManager.Create(options, Themes, Utils)
+    -- Defensive parameter validation
+    assert(options, "WindowManager.Create: options table is required")
+    assert(Themes, "WindowManager.Create: Themes module is required")
+    assert(Utils, "WindowManager.Create: Utils module is required")
+    
     options = options or {}
     
     local Library = {
@@ -33,15 +54,26 @@ function WindowManager.Create(options, Themes, Utils)
         Minimized = false,
         SearchEnabled = false,
         Connections = {},
+        
+        -- Injection state tracking
+        _Injected = false,
+        _InjectionReady = false,
     }
+    
+    -- Validate theme exists
+    if not Themes[Library.Theme] then
+        warn("Theme '" .. Library.Theme .. "' not found, falling back to 'Dark'")
+        Library.Theme = "Dark"
+    end
     
     Library.Colors = Themes[Library.Theme]
     
-    -- Create ScreenGui
+    -- Create ScreenGui with safe parent
     local ScreenGui = Utils.CreateElement("ScreenGui", {
-        Name = "C4RLGUI",
+        Name = "C4RLGUI_" .. tick(), -- Unique name to avoid conflicts
         ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        Enabled = false, -- Start hidden until Show() is called
     })
     
     -- Main Frame
@@ -279,16 +311,42 @@ function WindowManager.Create(options, Themes, Utils)
     end
     
     function Library:Show()
-        ScreenGui.Parent = CoreGui
-        self.Visible = true
-        MainFrame.Visible = true
+        local success, err = pcall(function()
+            -- Smart parent selection
+            local targetParent = GetGuiParent()
+            ScreenGui.Parent = targetParent
+            
+            -- Enable the GUI
+            ScreenGui.Enabled = true
+            self.Visible = true
+            MainFrame.Visible = true
+            
+            -- Show load notification if enabled
+            if self.ShowNotification and self._Injected then
+                -- Only show if notification system is injected
+                pcall(function()
+                    self:ShowNotification("GUI Loaded", self.Title .. " loaded successfully!", "Success", 3)
+                end)
+            end
+            
+            -- Start auto-save if enabled
+            if self.AutoSaveConfig then
+                self:StartAutoSave()
+            end
+        end)
         
-        if self.ShowNotification then
-            self:ShowNotification("GUI Loaded", self.Title .. " loaded successfully!", "Success", 3)
-        end
-        
-        if self.AutoSaveConfig then
-            self:StartAutoSave()
+        if not success then
+            warn("C4RL GUI: Failed to show GUI - " .. tostring(err))
+            warn("Attempting PlayerGui fallback...")
+            
+            -- Emergency fallback
+            pcall(function()
+                local Players = game:GetService("Players")
+                ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+                ScreenGui.Enabled = true
+                self.Visible = true
+                MainFrame.Visible = true
+            end)
         end
     end
     
@@ -319,20 +377,32 @@ function WindowManager.Create(options, Themes, Utils)
         ScreenGui:Destroy()
     end
     
-    -- Tab Management Methods
+    -- Injection-safe tab methods (stubs until InteractiveElements injects real ones)
     function Library:AddTab(options)
+        if not self._Injected then
+            error("C4RL GUI: AddTab called before InteractiveElements injection. Call InteractiveElements.Inject(Library) first!", 2)
+        end
         -- This will be overridden by InteractiveElements module
         error("Tab methods are injected by InteractiveElements module")
     end
     
     function Library:SwitchTab(tabName)
-        -- This will be overridden by InteractiveElements module
+        if not self._Injected then
+            error("C4RL GUI: SwitchTab called before InteractiveElements injection.", 2)
+        end
         error("Tab methods are injected by InteractiveElements module")
     end
     
     function Library:GetTab(tabName)
-        -- This will be overridden by InteractiveElements module
+        if not self._Injected then
+            error("C4RL GUI: GetTab called before InteractiveElements injection.", 2)
+        end
         error("Tab methods are injected by InteractiveElements module")
+    end
+    
+    -- Mark injection readiness
+    function Library:_MarkInjected()
+        self._Injected = true
     end
     
     -- Store references
